@@ -1,7 +1,6 @@
 # GEO7531 — Importer des données vectorielles, matricielles et LiDAR dans PostGIS
 
-Tutoriel détaillé qui accompagne la présentation *Importation des données matricielles et LiDAR* du cours GEO7531.
-Il reprend le contenu de la présentation, **corrige plusieurs erreurs** qui s'y trouvaient (signalées par 🔧) et ajoute des sections pratiques : `COPY`, `ogr2ogr`, traitements raster, LiDAR et dépannage.
+Tutoriel détaillé du cours GEO7531 sur l'importation de données dans PostGIS : terminal psql, `COPY`, `shp2pgsql`, `ogr2ogr`, `raster2pgsql`, traitements raster, LiDAR, optimisation des requêtes et dépannage.
 
 > **Pour qui ?** Étudiant·e·s qui savent créer une base dans pgAdmin et qui veulent importer des jeux de données trop gros pour QGIS, ou automatiser leurs importations.
 
@@ -21,9 +20,8 @@ Il reprend le contenu de la présentation, **corrige plusieurs erreurs** qui s'y
 9. [Données LiDAR](#9-données-lidar)
 10. [Visualiser dans QGIS et ArcGIS Pro](#10-visualiser-dans-qgis-et-arcgis-pro)
 11. [Optimiser les requêtes avec EXPLAIN ANALYZE](#11-optimiser-les-requêtes-avec-explain-analyze)
-12. [Récapitulatif des corrections apportées à la présentation](#12-récapitulatif-des-corrections-apportées-à-la-présentation)
-13. [Dépannage](#13-dépannage)
-14. [Références](#14-références)
+12. [Dépannage](#12-dépannage)
+13. [Références](#13-références)
 
 Fichiers utiles dans ce dossier :
 
@@ -46,7 +44,7 @@ C'est **la principale source de confusion**. Trois « terminaux » différents s
 | **Query Tool** de pgAdmin | Clic droit sur la base → **Query Tool** | Du **SQL** seulement | `SELECT * FROM ...;` |
 | **OSGeo4W Shell** (installé avec QGIS) | Menu Démarrer → *OSGeo4W Shell* | `ogr2ogr`, `gdalinfo`, `pdal` | `ogr2ogr -f PostgreSQL ...` |
 
-> 🔧 **Correction :** dans la présentation, le bouton *PSQL Tool* de pgAdmin est présenté juste avant les commandes `shp2pgsql` et `raster2pgsql`. Or **ces deux outils ne s'exécutent pas dans psql** : ce sont des programmes à lancer dans l'invite de commandes Windows. Ils produisent du SQL qu'on envoie ensuite à psql avec le symbole `|` (*pipe*).
+> ⚠️ **`shp2pgsql` et `raster2pgsql` ne s'exécutent pas dans psql** (ni dans le *PSQL Tool* de pgAdmin) : ce sont des programmes à lancer dans l'invite de commandes Windows. Ils produisent du SQL qu'on envoie ensuite à psql avec le symbole `|` (*pipe*).
 
 ### Conventions utilisées
 
@@ -100,7 +98,7 @@ Le résultat doit mentionner `RASTER`. Dans psql, `\dx` liste les extensions ins
 
 ### 1.3 Créer des schémas pour organiser les données
 
-La présentation propose trois schémas. Voici le SQL correspondant, avec un quatrième pour le LiDAR :
+On crée un schéma par type de données, plus un schéma pour les résultats de traitements :
 
 ```sql
 CREATE SCHEMA IF NOT EXISTS vecteur;   -- données vectorielles importées
@@ -123,7 +121,7 @@ Pourquoi des schémas ? On sépare ainsi les données brutes, qu'on ne modifie p
 C:\Program Files\PostgreSQL\16\bin
 ```
 
-> 🔧 **Mise à jour :** la présentation montre `PostgreSQL\13\bin`. Adaptez le numéro à **votre** version (16 dans le cours).
+> 💡 Adaptez le numéro de version à **votre** installation (16 dans le cours ; la capture ci-dessous montre une installation en version 13).
 > `shp2pgsql.exe` et `raster2pgsql.exe` ne sont présents dans ce dossier que si **PostGIS** a été installé, par exemple avec *Stack Builder → Spatial Extensions → PostGIS Bundle*.
 
 ![Dossier bin et emplacement de shp2pgsql](images/13-variables-environnement-bin.png)
@@ -233,18 +231,12 @@ SELECT * FROM vecteur.stations LIMIT 10;
 
 Exemple de requête spatiale : objets situés à moins de 1000 m d'un point.
 
-> 🔧 **Correction de l'exemple de la présentation :**
-> ```sql
-> -- Version de la présentation (problématique)
-> SELECT * FROM ma_table
-> WHERE ST_DWithin(geom, ST_MakePoint(1.23, 4.56)::geography, 1000);
-> ```
-> Trois problèmes :
-> 1. `ST_MakePoint` crée un point **sans système de coordonnées** (SRID 0). Il faut l'indiquer avec `ST_SetSRID(..., 4326)`.
-> 2. L'ordre des coordonnées est **(longitude, latitude)**, c'est-à-dire (x, y), et non l'inverse.
-> 3. Le type `geography` n'accepte que des coordonnées en degrés (EPSG:4326). Si `geom` est en MTM 8 (32188), la requête échoue. Si `geom` est en 4326, elle fonctionne, mais la conversion empêche l'utilisation de l'index spatial, ce qui la rend lente sur de gros jeux de données.
+Trois points à respecter :
+1. `ST_MakePoint` crée un point **sans système de coordonnées** (SRID 0). Il faut l'indiquer avec `ST_SetSRID(..., 4326)`.
+2. L'ordre des coordonnées est **(longitude, latitude)**, c'est-à-dire (x, y), et non l'inverse.
+3. Le type `geography` n'accepte que des coordonnées en degrés (EPSG:4326). Sur une table en MTM 8 (32188), on travaille donc directement en `geometry`, en mètres. Convertir la colonne en `geography` empêche aussi l'utilisation de l'index spatial.
 
-Versions correctes selon le système de coordonnées de la table :
+Requêtes selon le système de coordonnées de la table :
 
 ```sql
 -- Table en MTM 8 (EPSG:32188), unités en mètres : on reprojette le point vers 32188.
@@ -274,8 +266,8 @@ WHERE ST_DWithin(
 
 `COPY` est la méthode la plus rapide pour charger de gros fichiers tabulaires : des millions de lignes en quelques secondes.
 
-> 🔧 **Corrections :**
-> - La présentation affirme que COPY « ne fonctionne qu'avec des fichiers CSV ». En réalité, COPY lit trois formats : `text` (séparé par des tabulations, le format par défaut), `csv` et `binary`. En pratique, on l'utilise surtout avec des CSV et des fichiers texte délimités.
+> 💡 **À savoir :**
+> - COPY lit trois formats : `text` (séparé par des tabulations, le format par défaut), `csv` et `binary`. En pratique, on l'utilise surtout avec des CSV et des fichiers texte délimités.
 > - **`COPY ... FROM 'C:/...'` est lu par le serveur PostgreSQL, pas par votre ordinateur.** Il faut être superutilisateur, et le service PostgreSQL doit avoir le droit de lire le fichier. Sinon : `permission denied` ou `could not open file`. Dans psql, utilisez plutôt **`\copy`**, qui lit le fichier sur votre ordinateur avec vos propres droits. C'est d'ailleurs ce que suggère le message d'erreur de PostgreSQL.
 
 ### 4.1 Étapes
@@ -373,44 +365,39 @@ psql -h localhost -U postgres -d geo7531 -f arrondissements.sql
 
 On peut ouvrir `arrondissements.sql` dans un éditeur de texte pour voir le `CREATE TABLE` et les `INSERT` générés.
 
-### 5.2 Options de shp2pgsql (version corrigée)
+### 5.2 Options de shp2pgsql
 
-> 🔧 **Correction importante :** la liste d'options de la présentation contient **plusieurs erreurs**, résumées ci-dessous. Le tableau qui suit donne la signification exacte selon la documentation officielle de PostGIS. En cas de doute, tapez `shp2pgsql` sans argument pour afficher l'aide de **votre** version.
+Signification des options selon la documentation officielle de PostGIS. En cas de doute, tapez `shp2pgsql` sans argument pour afficher l'aide de **votre** version.
 
-| Option | Ce qu'elle fait réellement | Ce qu'en disait la présentation |
-|---|---|---|
-| `-s SRID` | Indique le système de coordonnées des données, par exemple `-s 32188`. **N'opère aucune reprojection.** | ✅ Correct |
-| `-s DE:VERS` | **Reprojette** à l'importation, par exemple `-s 2950:32188` | *(absent)* |
-| `-I` | Crée un index spatial GiST sur la géométrie | ✅ Correct |
-| `-W encodage` | Encodage des attributs du `.dbf` (`UTF-8`, `LATIN1`…) | ✅ Correct |
-| `-g nom` | Nom de la colonne géométrique (`geom` par défaut) | ✅ Correct |
-| `-k` | Conserve la casse des noms de colonnes | ✅ Correct |
-| `-c` | Crée la table et insère les données (mode par défaut) | ✅ Correct |
-| `-a` | Ajoute les données à une table existante | ✅ Correct |
-| `-d` | Supprime la table existante puis la recrée | ✅ Correct |
-| `-p` | Génère seulement la structure (`CREATE TABLE`), sans données | ✅ Correct |
-| `-D` | Utilise le format **dump** de PostgreSQL (`COPY`) au lieu d'`INSERT` : **beaucoup plus rapide** pour les gros fichiers | ❌ « suppression des doublons, divise les multi-parties » |
-| `-G` | Utilise le type **geography** au lieu de geometry (uniquement en 4326) | ❌ « métadonnées géographiques, emprise » |
-| `-S` | Produit des géométries **simples** (POLYGON) au lieu de MULTI ; échoue si une entité est réellement multi-parties | ❌ « supprime les géométries SRID » |
-| `-m fichier` | Fichier de correspondance entre noms de colonnes longs et noms DBF à 10 caractères | ❌ « mode multi-géométries ». Par défaut, shp2pgsql produit **déjà** des MULTI |
-| `-n` | Importe **uniquement le `.dbf`**, sans géométrie | ❌ « spécifie le schéma ». Le schéma se donne dans le nom de table : `vecteur.ma_table` |
-| `-i` | Force les entiers en `integer` (32 bits) | *(absent)* |
-| `-N politique` | Que faire des géométries nulles : `insert`, `skip` ou `abort` | *(absent)* |
-| `-e` | Exécute chaque instruction séparément, sans transaction (incompatible avec `-D`) | *(absent)* |
-| `-w` | Écrit les géométries en WKT au lieu de WKB (perte de précision possible) | *(absent)* |
-| `-T` / `-X` | Tablespace de la table / des index | *(absent)* |
-| `-C` | **N'existe pas** dans shp2pgsql | ❌ « contraintes de validité » |
-| `-t 100x100` | **Le tuilage n'existe pas pour les vecteurs.** C'est une option de `raster2pgsql`. | ❌ « divise les grandes géométries en tuiles » |
+| Option | Rôle |
+|---|---|
+| `-s SRID` | Indique le système de coordonnées des données, par exemple `-s 32188`. **N'opère aucune reprojection.** |
+| `-s DE:VERS` | **Reprojette** à l'importation, par exemple `-s 2950:32188` |
+| `-I` | Crée un index spatial GiST sur la géométrie |
+| `-W encodage` | Encodage des attributs du `.dbf` (`UTF-8`, `LATIN1`…) |
+| `-g nom` | Nom de la colonne géométrique (`geom` par défaut) |
+| `-k` | Conserve la casse des noms de colonnes |
+| `-c` | Crée la table et insère les données (mode par défaut) |
+| `-a` | Ajoute les données à une table existante |
+| `-d` | Supprime la table existante puis la recrée |
+| `-p` | Génère seulement la structure (`CREATE TABLE`), sans données |
+| `-D` | Utilise le format **dump** de PostgreSQL (`COPY`) au lieu d'`INSERT` : **beaucoup plus rapide** pour les gros fichiers |
+| `-G` | Utilise le type **geography** au lieu de geometry (uniquement en 4326) |
+| `-S` | Produit des géométries **simples** (POLYGON) au lieu de MULTI ; échoue si une entité est réellement multi-parties |
+| `-m fichier` | Fichier de correspondance entre noms de colonnes longs et noms DBF à 10 caractères |
+| `-n` | Importe **uniquement le `.dbf`**, sans géométrie |
+| `-i` | Force les entiers en `integer` (32 bits) |
+| `-N politique` | Que faire des géométries nulles : `insert`, `skip` ou `abort` |
+| `-e` | Exécute chaque instruction séparément, sans transaction (incompatible avec `-D`) |
+| `-w` | Écrit les géométries en WKT au lieu de WKB (perte de précision possible) |
+| `-T` / `-X` | Tablespace de la table / des index |
 
-> 🔧 **La « commande complète » de la présentation ne fonctionne pas :**
-> ```
-> shp2pgsql -s 4326 -I -W UTF8 -g ma_geom -n public -t 100x100 "C:/chemin/vers/fichier.shp" schema.nom_table | psql ...
-> ```
-> - `-n` importerait **seulement la table attributaire, sans géométrie**, et `public` serait pris pour le nom du fichier.
-> - `-t 100x100` n'est pas une option de tuilage de shp2pgsql.
-> - `-s 4326` ne convient que si le shapefile est réellement en WGS84.
+> ⚠️ **Pièges fréquents :**
+> - Le **schéma** se donne dans le nom de la table (`vecteur.ma_table`), pas avec `-n` : cette option importe seulement la table attributaire, sans géométrie.
+> - Le **tuilage** (`-t 100x100`) n'existe que pour les rasters, avec `raster2pgsql`.
+> - Par défaut, shp2pgsql produit déjà des géométries MULTI.
 
-### 5.3 Exemples corrects
+### 5.3 Exemples
 
 **Importation simple** (shapefile déjà en MTM 8) :
 
@@ -497,8 +484,6 @@ Le `3` de `ST_CollectionExtract` conserve les polygones. Utilisez `2` pour des l
 ---
 
 ## 6. Importer GeoJSON, KML, GeoPackage… avec ogr2ogr
-
-La présentation désigne `ogr2ogr` comme l'une des deux méthodes préférées, mais n'en montre aucun exemple. Le voici.
 
 `ogr2ogr` fait partie de **GDAL**. Il lit plus de 80 formats vectoriels, peut **reprojeter**, **filtrer** et **transformer avec du SQL** pendant l'importation.
 
@@ -623,7 +608,7 @@ PostGIS ne lit pas directement un fichier image. `raster2pgsql` le découpe en t
 2. `raster2pgsql` est accessible depuis l'invite de commandes (section 2).
 3. Le raster est dans un format lu par GDAL : GeoTIFF, ASCII Grid, Erdas `.img`, NetCDF, JPEG, PNG…
 
-> 🔧 **Correction :** la présentation indique `raster2pgsql --formats` pour lister les formats. La bonne option est **`raster2pgsql -G`**.
+> 💡 Pour lister les formats pris en charge par votre installation : **`raster2pgsql -G`**.
 
 ### 7.2 Connaître le SRID du raster
 
@@ -635,15 +620,15 @@ gdalinfo C:\GEO7531\donnees\mnt.tif
 
 Repérez la ligne `ID["EPSG",....]` à la fin du bloc *Coordinate System*. Vous pouvez aussi passer par QGIS → *Propriétés de la couche → Information*.
 
-> 🔧 **Point important de la présentation, précisé :** utilisez le SRID réel du fichier, et non 4326 par défaut. Dans les captures de la présentation, un raster est importé avec `-s 32188` (NAD83 / MTM 8) et un autre (`MNT_Ombre_31H12SO`) avec `-s 2950` (NAD83(CSRS) / MTM 8). Ces deux systèmes sont proches mais différents. Pour superposer ou croiser ces couches dans PostGIS, elles doivent avoir le **même SRID**, sinon `ST_Intersects`, `ST_Clip` et les autres fonctions renvoient une erreur.
+> ⚠️ Utilisez le SRID réel du fichier, et non 4326 par défaut. Dans les captures de ce tutoriel, un raster est importé avec `-s 32188` (NAD83 / MTM 8) et un autre (`MNT_Ombre_31H12SO`) avec `-s 2950` (NAD83(CSRS) / MTM 8). Ces deux systèmes sont proches mais différents. Pour superposer ou croiser ces couches dans PostGIS, elles doivent avoir le **même SRID**, sinon `ST_Intersects`, `ST_Clip` et les autres fonctions renvoient une erreur.
 
-### 7.3 Syntaxe et options (version corrigée)
+### 7.3 Syntaxe et options
 
 ```bat
 raster2pgsql [options] fichier.tif schema.table | psql -h localhost -U postgres -d geo7531
 ```
 
-| Option | Signification exacte |
+| Option | Rôle |
 |---|---|
 | `-s SRID` | Système de coordonnées du raster |
 | `-I` | Crée un index spatial GiST sur l'emprise des tuiles |
@@ -662,12 +647,6 @@ raster2pgsql [options] fichier.tif schema.table | psql -h localhost -U postgres 
 | `-e` | Sans transaction globale |
 | `-G` | Liste les formats pris en charge |
 
-> 🔧 **Corrections de la diapositive « Explication de la syntaxe » :**
-> - `-F` **n'est pas** « stocker les données dans une table au format raster ». Il ajoute une colonne avec le **nom du fichier** source.
-> - `-M` **n'est pas** « ajuster la taille des tuiles ». Il lance `VACUUM ANALYZE` après l'importation. La taille des tuiles se règle avec `-t`.
-> - `-C` ne garantit pas la « continuité des pixels ». Il applique les contraintes standard listées ci-dessus.
-> - La diapositive explique `-s 4326` alors que la commande utilise `-s 32188`. C'est bien **32188** qui convient pour ce raster en MTM 8.
-
 ### 7.4 Commande type
 
 ```bat
@@ -681,7 +660,7 @@ Pendant l'importation, psql affiche une série de messages. Elle se termine par 
 
 Les `NOTICE: Adding ... constraint` proviennent de l'option `-C`, et le `VACUUM` final de `-M`.
 
-Autre exemple tiré de la présentation : un MNT importé avec `-s 2950`, sans `-C` ni tuilage. On y voit l'aide de raster2pgsql au-dessus de la commande.
+Autre exemple : un MNT importé avec `-s 2950`, sans `-C` ni tuilage. On y voit l'aide de raster2pgsql au-dessus de la commande.
 
 ![Aide et exemple raster2pgsql](images/12-raster2pgsql-aide-et-exemple.png)
 
@@ -741,7 +720,7 @@ SELECT (ST_SummaryStatsAgg(rast, 1, true)).*
 FROM raster.mnt;
 ```
 
-> 🔧 **Correction :** la présentation propose `SELECT srid FROM spatial_ref_sys WHERE srid = 32188;` comme « vérification post-importation ». Cette requête vérifie seulement que le code 32188 **existe dans le catalogue** de PostGIS, ce qui est toujours vrai. Elle ne dit rien du raster importé. Utilisez plutôt `raster_columns` ou `ST_SRID(rast)`, comme ci-dessus.
+> 💡 `SELECT srid FROM spatial_ref_sys WHERE srid = 32188;` vérifie seulement que le code 32188 **existe dans le catalogue** de PostGIS. Pour vérifier le raster importé, interrogez `raster_columns` ou `ST_SRID(rast)`, comme ci-dessus.
 
 ### 7.7 Alternative graphique : QGIS
 
@@ -772,14 +751,11 @@ raster2pgsql -s 32188 -I -C -M -t 256x256 C:/GEO7531/donnees/B5.tif raster.pir  
 
 ![Combiner deux bandes avec ST_AddBand](images/15-st-addband-combiner-bandes.png)
 
-> 🔧 **Correction de la requête de la présentation :**
-> ```sql
-> CREATE TABLE travaux.rpir AS
-> SELECT ST_AddBand(pir.rast, rouge.rast, 1, 2)
-> ```
-> Il manque la clause `FROM` avec la **jointure** entre les tuiles des deux tables. Il manque aussi un alias pour la colonne résultat : sans `AS rast`, elle s'appelle `st_addband`. Enfin, l'ordre des arguments de `ST_AddBand(raster_destination, raster_source, bande_source, position)` place ici le PIR en bande 1 et le rouge en bande 2. Ce n'est pas faux, mais ce n'est pas l'ordre habituel (rouge, puis PIR).
+La fonction `ST_AddBand(raster_destination, raster_source, bande_source, position)` ajoute une bande d'un raster à un autre. La requête doit :
+- **joindre** les tuiles correspondantes des deux tables (clause `FROM ... JOIN`) ;
+- nommer la colonne résultat (`AS rast`), sinon elle s'appelle `st_addband`.
 
-Version complète :
+Requête complète, avec le rouge en bande 1 et le PIR en bande 2 :
 
 ```sql
 CREATE TABLE travaux.rouge_pir AS
@@ -800,7 +776,7 @@ SELECT AddRasterConstraints('travaux', 'rouge_pir', 'rast');
 SELECT ST_NumBands(rast) FROM travaux.rouge_pir LIMIT 1;
 ```
 
-La présentation ajoutait la clé primaire après coup avec `ALTER TABLE travaux.rpir ADD COLUMN rid serial PRIMARY KEY;`. Ici, on conserve directement le `rid` d'origine.
+On conserve ici le `rid` d'origine comme clé primaire. On peut aussi en créer une nouvelle avec `ALTER TABLE travaux.rouge_pir ADD COLUMN id serial PRIMARY KEY;`.
 
 ### 8.2 Calculer un NDVI
 
@@ -905,7 +881,7 @@ LIMIT 100;
 | `ST_MapAlgebra(...)` | Calcul pixel par pixel |
 | `ST_Union(rast)` | Fusionne les tuiles en un seul raster (attention à la mémoire) |
 
-> ⚠️ `ST_BandMetadata` ne renvoie **pas** les valeurs minimale et maximale de la bande, contrairement à ce qu'indique la présentation. Pour celles-ci, utilisez `ST_SummaryStats` ou `ST_SummaryStatsAgg`.
+> 💡 `ST_BandMetadata` ne renvoie pas les valeurs minimale et maximale de la bande : utilisez `ST_SummaryStats` ou `ST_SummaryStatsAgg`.
 
 📄 Script complet : [`scripts/06_traitements_raster.sql`](scripts/06_traitements_raster.sql)
 
@@ -913,7 +889,7 @@ LIMIT 100;
 
 ## 9. Données LiDAR
 
-Le titre de la présentation annonce le LiDAR, mais aucune diapositive n'en traite. Voici les deux approches possibles. Un fichier LiDAR (`.las` ou `.laz`, compressé) contient des **millions de points** (x, y, z, intensité, classe…). Ni `shp2pgsql` ni `raster2pgsql` ne savent le lire directement.
+Deux approches sont possibles. Un fichier LiDAR (`.las` ou `.laz`, compressé) contient des **millions de points** (x, y, z, intensité, classe…). Ni `shp2pgsql` ni `raster2pgsql` ne savent le lire directement.
 
 ### Approche A (recommandée pour le cours) : produire un MNT raster, puis l'importer
 
@@ -1070,38 +1046,7 @@ GROUP BY a.nom;
 
 ---
 
-## 12. Récapitulatif des corrections apportées à la présentation
-
-| Diapositive / sujet | Dans la présentation | Correction |
-|---|---|---|
-| Titre | Annonce le LiDAR | Aucun contenu LiDAR : voir la nouvelle [section 9](#9-données-lidar) |
-| Méthodes d'importation | COPY « ne fonctionne qu'avec des CSV » | COPY lit les formats `text`, `csv` et `binary` |
-| COPY | `COPY ma_table FROM '/path/...'` | Fichier lu **par le serveur** (droits de superutilisateur requis) ; utiliser `\copy` dans psql |
-| PSQL Tool → shp2pgsql | Présentés à la suite | `shp2pgsql` et `raster2pgsql` s'exécutent dans l'**invite de commandes**, pas dans psql |
-| `ST_DWithin` | `ST_MakePoint(1.23, 4.56)::geography` | SRID manquant, ordre lon/lat, et ne fonctionne que si la table est en 4326 (voir 3.3) |
-| shp2pgsql `-D` | « suppression des doublons » | Format dump (`COPY`), plus rapide |
-| shp2pgsql `-G` | « métadonnées géographiques » | Type `geography` |
-| shp2pgsql `-S` | « supprime les géométries SRID » | Géométries simples au lieu de MULTI |
-| shp2pgsql `-m` | « mode multi-géométries » | Fichier de correspondance des noms de colonnes |
-| shp2pgsql `-n` | « nouveau schéma » | Importe seulement le `.dbf` (sans géométrie) |
-| shp2pgsql `-C` | « contraintes de validité » | N'existe pas |
-| shp2pgsql `-t` | « tuilage des géométries » | Pas de tuilage pour les vecteurs (option de raster2pgsql) |
-| Commande complète shp2pgsql | `-n public -t 100x100` | Commande non fonctionnelle ; voir les exemples de la section 5.3 |
-| Dossier `bin` | `PostgreSQL\13\bin` | Adapter à la version installée (16) |
-| raster2pgsql `-F` | « stocke au format raster » | Ajoute une colonne `filename` |
-| raster2pgsql `-M` | « ajuste la taille des tuiles » | `VACUUM ANALYZE` après le chargement |
-| raster2pgsql `-s` | Explication `-s 4326` pour une commande en `-s 32188` | Utiliser le SRID réel du fichier |
-| SRID 32188 et 2950 | Utilisés selon les rasters | Systèmes différents : uniformiser avant de croiser des couches |
-| Formats raster | `raster2pgsql --formats` | `raster2pgsql -G` |
-| Vérification | `SELECT srid FROM spatial_ref_sys WHERE srid=32188` | Ne vérifie pas le raster : interroger `raster_columns` ou `ST_SRID(rast)` |
-| `ST_AddBand` | Sans `FROM`, sans jointure, sans alias | Requête complète en 8.1 |
-| `ST_BandMetadata` | « valeurs minimale et maximale » | Utiliser `ST_SummaryStats` ou `ST_SummaryStatsAgg` |
-| Nom de base | `geo7531` dans les commandes, `GEO7531` dans pgAdmin | Noms sensibles à la casse : utiliser des minuscules |
-| `EXPLAIN ANALYZE` | — | Exécute réellement la requête (prudence avec `UPDATE`/`DELETE`) |
-
----
-
-## 13. Dépannage
+## 12. Dépannage
 
 | Message ou symptôme | Cause probable | Solution |
 |---|---|---|
@@ -1125,7 +1070,7 @@ GROUP BY a.nom;
 
 ---
 
-## 14. Références
+## 13. Références
 
 - Documentation PostGIS : chargement des données (shp2pgsql) — https://postgis.net/docs/using_postgis_dbmanagement.html
 - Documentation PostGIS : données raster (raster2pgsql) — https://postgis.net/docs/using_raster_dataman.html
@@ -1140,4 +1085,4 @@ GROUP BY a.nom;
 
 ---
 
-*Cours GEO7531 — Département de géographie, UQAM. Document de consultation basé sur la présentation d'Olivier Caron, révisé et complété.*
+*Cours GEO7531 — Département de géographie, UQAM. Document de consultation.*
