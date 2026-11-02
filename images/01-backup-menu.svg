@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 470" width="900" height="470" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+<rect width="900" height="470" fill="#f6f8fa"/>
+<rect x="20" y="20" width="860" height="430" rx="8" fill="#ffffff" stroke="#c9d1d9"/>
+<rect x="20" y="20" width="860" height="40" rx="8" fill="#326690"/>
+<rect x="20" y="44" width="860" height="16" fill="#326690"/>
+<text x="40" y="46" fill="#fff" font-size="16" font-weight="600">pgAdmin 4 — Lancer une sauvegarde</text>
+<text x="850" y="46" fill="#fff" font-size="16">✕</text>
+<defs><filter id="sh"><feDropShadow dx="2" dy="3" stdDeviation="3" flood-opacity="0.2"/></filter></defs><rect x="40" y="80" width="300" height="330" fill="#fbfcfd" stroke="#c9d1d9"/>
+<text x="50" y="102" font-size="13" fill="#57606a">Explorateur d'objets</text>
+<text x="56" y="130" font-size="14" fill="#24292f">▾ Servers</text>
+<text x="74" y="158" font-size="14" fill="#24292f">▾ PostgreSQL 16</text>
+<text x="92" y="186" font-size="14" fill="#24292f">▾ Databases</text>
+<rect x="44" y="196" width="290" height="26" fill="#fff3cd" stroke="#d62828" stroke-width="2"/>
+<text x="110" y="214" font-size="14" fill="#24292f">▸ geo7531_tp</text>
+<text x="110" y="242" font-size="14" fill="#24292f">▸ postgres</text>
+<text x="92" y="270" font-size="14" fill="#24292f">▸ Login/Group Roles</text>
+<text x="92" y="298" font-size="14" fill="#24292f">▸ Tablespaces</text>
+<circle cx="30" cy="209" r="13" fill="#d62828"/><text x="30" y="214" fill="#fff" font-size="14" font-weight="700" text-anchor="middle">1</text>
+<text x="56" y="395" font-size="12" fill="#57606a" font-style="italic">Clic droit sur la base de données</text>
+<rect x="300" y="205" width="220" height="236" rx="4" fill="#fff" stroke="#c9d1d9" filter="url(#sh)"/>
+<text x="316" y="231" font-size="14" fill="#24292f" font-weight="400">Create</text>
+<text x="316" y="259" font-size="14" fill="#24292f" font-weight="400">Refresh...</text>
+<line x1="308" y1="279" x2="512" y2="279" stroke="#c9d1d9"/>
+<rect x="304" y="296" width="212" height="26" fill="#fff3cd" stroke="#d62828" stroke-width="2"/>
+<circle cx="540" cy="309" r="13" fill="#d62828"/><text x="540" y="314" fill="#fff" font-size="14" font-weight="700" text-anchor="middle">2</text>
+<text x="316" y="315" font-size="14" fill="#24292f" font-weight="700">Backup...</text>
+<text x="316" y="343" font-size="14" fill="#24292f" font-weight="400">Restore...</text>
+<line x1="308" y1="363" x2="512" y2="363" stroke="#c9d1d9"/>
+<text x="316" y="399" font-size="14" fill="#24292f" font-weight="400">Query Tool</text>
+<text x="316" y="427" font-size="14" fill="#24292f" font-weight="400">Properties...</text>
+<text x="560" y="250" font-size="14" fill="#24292f">Choisir « Backup... »</text>
+<text x="560" y="276" font-size="13" fill="#57606a">La base reste en ligne pendant</text>
+<text x="560" y="298" font-size="13" fill="#57606a">la sauvegarde (pas besoin</text>
+<text x="560" y="320" font-size="13" fill="#57606a">de la déconnecter).</text>
+</svg>
