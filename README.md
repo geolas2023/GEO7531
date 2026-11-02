@@ -1,5 +1,12 @@
 # GEO7531 — Créer, restaurer et sauvegarder une base PostgreSQL / PostGIS avec pgAdmin 4
 
+> ## 📚 Tutoriels du cours
+>
+> | Tutoriel | Contenu |
+> |---|---|
+> | **Créer, restaurer et sauvegarder une base** (cette page) | pgAdmin : création, PostGIS, *Restore*, *Backup* |
+> | [**Importer des données dans PostGIS**](importation-postgis/README.md) | psql, `\copy`, shp2pgsql, ogr2ogr, raster2pgsql, NDVI, LiDAR, EXPLAIN ANALYZE |
+
 Ce guide présente, dans l'ordre, les quatre opérations à maîtriser pour le cours :
 
 1. **Créer** une nouvelle base de données

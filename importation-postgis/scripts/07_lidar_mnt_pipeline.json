@@ -1,0 +1,17 @@
+{
+  "pipeline": [
+    "C:/GEO7531/donnees/lidar/nuage.laz",
+    {
+      "type": "filters.range",
+      "limits": "Classification[2:2]"
+    },
+    {
+      "type": "writers.gdal",
+      "filename": "C:/GEO7531/donnees/lidar/mnt.tif",
+      "resolution": 1.0,
+      "output_type": "idw",
+      "data_type": "float32",
+      "gdaldriver": "GTiff"
+    }
+  ]
+}

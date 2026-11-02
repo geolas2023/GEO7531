@@ -1,0 +1,17 @@
+{
+  "pipeline": [
+    "C:/GEO7531/donnees/lidar/nuage.laz",
+    {
+      "type": "filters.chipper",
+      "capacity": 400
+    },
+    {
+      "type": "writers.pgpointcloud",
+      "connection": "host='localhost' dbname='geo7531' user='postgres' password='votre_mot_de_passe' port='5432'",
+      "schema": "lidar",
+      "table": "nuage_patchs",
+      "srid": "2950",
+      "compression": "dimensional"
+    }
+  ]
+}
