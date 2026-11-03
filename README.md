@@ -6,6 +6,7 @@
 > |---|---|
 > | **Créer, restaurer et sauvegarder une base** (cette page) | pgAdmin : création, PostGIS, *Restore*, *Backup* |
 > | [**Importer des données dans PostGIS**](importation-postgis/README.md) | psql, `\copy`, shp2pgsql, ogr2ogr, raster2pgsql, NDVI, LiDAR, EXPLAIN ANALYZE |
+> | [**Installer les extensions de géomatique**](extensions-postgis/README.md) | PostGIS, raster, topologie, SFCGAL, pgRouting, ogr_fdw, H3, pointcloud, recherche de noms, MobilityDB |
 
 Ce guide présente, dans l'ordre, les quatre opérations à maîtriser pour le cours :
 
