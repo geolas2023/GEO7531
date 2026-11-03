@@ -8,6 +8,7 @@
 > | [**Importer des données dans PostGIS**](importation-postgis/README.md) | psql, `\copy`, shp2pgsql, ogr2ogr, raster2pgsql, NDVI, LiDAR, EXPLAIN ANALYZE |
 > | [**Installer les extensions de géomatique**](extensions-postgis/README.md) | PostGIS, raster, topologie, SFCGAL, pgRouting, ogr_fdw, H3, pointcloud, recherche de noms, MobilityDB |
 > | [**Semaine 9 : toutes les requêtes SQL du cours**](semaine-09-sql-postgis/README.md) | Code SQL de la présentation « Introduction à PostgreSQL et PostGIS », diapo par diapo : géométries, relations et jointures spatiales, projections, indexation |
+> | [**Les déclencheurs (triggers)**](declencheurs-postgis/README.md) | BEFORE / AFTER / INSTEAD OF, NEW et OLD, calculs géométriques automatiques, jointure spatiale à la saisie, validation, journal d'audit, exercices |
 
 Ce guide présente, dans l'ordre, les quatre opérations à maîtriser pour le cours :
 
